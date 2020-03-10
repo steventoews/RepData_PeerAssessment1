@@ -4,22 +4,123 @@ output:
   html_document:
     keep_md: true
 ---
-
+```{r packages, echo=FALSE, results='hide'}
+library(tidyverse)
+```
 
 ## Loading and preprocessing the data
 
 
+```{r dataloading}
+
+
+#unzipping the data
+if(!file.exists("activity.csv")){
+  unzip("activity.zip")
+}
+
+#loading the data
+activity<-read.csv("activity.csv")
+
+#converting date to date format
+activity$date<-as.Date(as.character(activity$date), "%Y-%m-%d")
+```
 
 ## What is mean total number of steps taken per day?
+```{r mean steps, echo=FALSE}
+#figuring out daily sums, unique days, and making a data.frame
+dailysums<-tapply(activity$steps,activity$date,sum)
+uniquedays<-unique(activity$date)
+dailysumdf<-data.frame(uniquedays,dailysums)
 
+#plotting the sums
+plot1<-ggplot(dailysumdf,aes(uniquedays, dailysums))+
+  geom_bar(stat="identity")
+print(plot1)
 
-
+#calculate dailymean and dailymedian
+dailymean<-mean(dailysumdf$dailysums, na.rm=TRUE)
+dailymedian<-median(dailysumdf$dailysums, na.rm=TRUE)
+print(paste("Daily Mean: ", dailymean))
+print(paste("Daily Median: ",dailymedian))
+```
 ## What is the average daily activity pattern?
+```{r intervals, echo=FALSE}
+#figuring out interval mean, unique intervals, and making a data.frame
+intervalmean<-tapply(activity$steps,activity$interval,mean, na.rm=TRUE)
+uniqueintervals<-unique(activity$interval)
+intervalmeandf<-data.frame(uniqueintervals,intervalmean)
 
+#plotting the interval means
+plot2<-ggplot(intervalmeandf,aes(uniqueintervals,intervalmean, group=1))+
+  geom_line(stat="identity")
+print(plot2)
 
+#figuring out max interval mean
+maxintervalmean<-max(intervalmeandf$intervalmean)
+maxintervalmeanrow<-intervalmeandf[which(intervalmeandf$intervalmean==maxintervalmean),]
+maxintervalmeaninteger<-(maxintervalmeanrow[1,1])
+print(paste("Max Interval Mean Interval: ", maxintervalmeaninteger))
+```
 
 ## Imputing missing values
 
+In order to impute the missing values I simply inserted the mean steps per interval into each NA.
+
+```{r imputing}
+#calculate number of NAs
+nacountlog<-sapply(activity$steps,is.na)
+nacount<-sum(nacountlog)
+
+#impute data
+activityimputed<-activity
+for(i in 1:nrow(activity)){
+  if(is.na(activity[i,1]))
+    activityimputed[i,1]<-mean(intervalmean)
+}
+
+#histogram of imputed datatable
+imputedsums<-tapply(activityimputed$steps,activityimputed$date,sum)
+uniqueimputeddays<-unique(activityimputed$date)
+dailyimputedsumdf<-data.frame(uniqueimputeddays,imputedsums)
+
+plot3<-ggplot(dailyimputedsumdf,aes(uniqueimputeddays, imputedsums))+
+  geom_bar(stat="identity")
+print(plot3)
+
+#calculate imputed mean and median
+imputedmean<-mean(dailyimputedsumdf$imputedsums)
+imputedmedian<-median(dailyimputedsumdf$imputedsums)
+
+print(paste("Imputed Mean: ", imputedmean))
+print(paste("Imputed Median ", imputedmedian))
+
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r, weekends, echo=FALSE}
+#add weekend/weekday column
+weekday<-sapply(activityimputed$date,weekdays)
+weekday[weekday=="Monday" | weekday=="Tuesday" | weekday=="Wednesday" |
+          weekday=="Thursday" | weekday=="Friday"]<-"weekday"
+weekday[weekday=="Saturday" | weekday=="Sunday"]<-"weekend"
+
+#bind it to activityimputed table
+activityimputed<-cbind(activityimputed,weekday)
+
+splitactivityimputed<-split(activityimputed,weekday)
+weekdays<-splitactivityimputed$weekday
+weekends<-splitactivityimputed$weekend
+weekdayintervals<-tapply(weekdays$steps, weekdays$interval, mean)
+weekendintervals<-tapply(weekends$steps, weekends$interval, mean)
+weekdayintervalsdf<-data.frame(weekdayintervals,uniqueintervals)
+weekendintervalsdf<-data.frame(weekendintervals,uniqueintervals)
+
+
+#plotting the interval means
+plot4<-ggplot(weekdayintervalsdf,aes(uniqueintervals,weekdayintervals, group=1))+
+  geom_line(stat="identity")+
+  geom_line(data=weekendintervalsdf, aes(uniqueintervals,weekendintervals, group=2, color="red"), stat="identity")
+print(plot4)
+```
